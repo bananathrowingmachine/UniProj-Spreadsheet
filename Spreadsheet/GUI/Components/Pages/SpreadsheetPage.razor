@@ -1,0 +1,244 @@
+﻿<!-- Made by bananathrowingmachine and [redacted], Oct 18 2024 -->
+
+@namespace GUI.Client.Pages
+@page "/sheets"
+@rendermode InteractiveServer
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+
+<!-- Outside references were used at the following sites:
+    Understanding JavaScript Functions: https://www.w3schools.com/js/js_functions.asp
+    Style Display Property: https://www.w3schools.com/jsref/prop_style_display.asp
+    Understanding HTML Body Tag Features: https://www.w3schools.com/tags/tag_body.asp
+    Understanding CSS Styles: https://www.w3schools.com/jsref/prop_element_classlist.asp
+-->
+
+<PageTitle>Spreadsheet</PageTitle>
+
+<!-- Creates buttons for dark mode, saving, and loading -->
+<span>
+    <label>Save Current File:</label>
+    <button @onclick="SaveFile">Save</button>
+    <button onclick="activateDarkMode()" style="float:right;">Toggle Visuals</button>
+    <script>
+        function activateDarkMode() {
+            document.body.classList.toggle("turnOnDarkMode");
+        }
+    </script>
+    <br />
+    <br />
+    <label>Load File:</label>
+    <InputFile type="file" OnChange="HandleFileChooser" />
+</span>
+<style>
+    body {
+        background-color: white;
+        color: black;
+    }
+
+    .turnOnDarkMode {
+        background-color: #1F2022;
+        color: white;
+    }
+
+    .turnOnDarkMode .fixed-header,
+    .turnOnDarkMode .fixed-column {
+        background-color: #121314 !important;
+        color: #24D182;
+    }
+
+    .turnOnDarkMode .cell-textcolor {
+        color: mediumseagreen;
+    }
+
+</style>
+
+<br />
+<br />
+
+<!-- Used to create three boxes to display current cell, cell value, and cell formula -->
+<span>
+    <input style="text-align:center;" size="1" @bind="_selectedCell" readonly />
+    <input value="@_currentValue" style="text-align:center;" placeholder="Cell Value" size="25" readonly />
+    <input value="@_currentContents" @ref="_textArea" @onchange="CellContentChanged" style="text-align:center;" placeholder="Cell Contents" size="70" />
+</span>
+
+<!-- Used to recognize when an error occurred -->
+<body>
+    <script>
+        function anExceptionOccurred() {
+            document.getElementById("errorOccurred").style.display = "grid";
+        }
+
+        function fileLoadException() {
+            document.getElementById("errorOccurredFile").style.display = "grid";
+        }
+
+        function closeAlert() {
+            document.getElementById("errorOccurred").style.display = "none";
+        }
+
+        function closeAlertFile() {
+            document.getElementById("errorOccurredFile").style.display = "none";
+        }
+    </script>
+    <!-- Indicates an error with formula or circular dependency -->
+    <div class="errorBox" id="errorOccurred">
+        <span class="exitX" onclick="closeAlert()" style="font-size:25px">
+            <span><b> <u> ERROR </u> </b></span>
+            <span style="float: right"><b>(X)</b></span>
+        </span>
+        <span style="font-size:20px"> Formula was improperly formatted or a circular dependency occurred. </span>
+    </div>
+    <!-- Indicates an error with loading file -->
+    <div class="errorBox" id="errorOccurredFile">
+        <span class="exitX" onclick="closeAlertFile()" style="font-size:25px">
+            <span><b> <u> ERROR </u> </b></span>
+            <span style="float: right"><b>(X)</b></span>
+        </span>
+        <span style="font-size:20px"> Failed to open file, please retry with valid document. </span>
+    </div>
+
+</body>
+<head>
+    <style>
+        .errorBox {
+            background-color: tomato;
+            color: black;
+            display: none;
+            text-align: center;
+            padding: 10px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            margin-top: -100px;
+            margin-left: -200px;
+            z-index: 1000;
+        }
+
+        .exitX {
+            color: black;
+            float: right;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<!-- Creates the spreadsheet cells -->
+<div>
+    <div class="table-container">
+        <div class="scrollable">
+            <table class="table table-bordered">
+                <thead>
+                    <tr class="fixed-header">
+                        <th scope="col">&nbsp;</th>
+                        @for (int col = 0; col < Cols; col++)
+                        {
+                            <th scope="col">@Alphabet[col]</th>
+                        }
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @for (int row = 0; row < Rows; row++)
+                    {
+                        <tr style="padding:0 !important;">
+                            <th style="padding:0 !important;" scope="row" class="fixed-column">@(row + 1)</th>
+                            @for (int col = 0; col < Cols; col++)
+                            {
+                                int r = row;
+                                int c = col;
+
+                                <td @onclick="() => CellClicked(r,c)" style="padding:0 !important;">
+                                    <p class="spreadcell cell-textcolor"> @CellsValueStore[r, c]  </p>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    .spreadcell {
+        width: 150px;
+        height: 40px;
+        text-align: center;
+        align-content: center;
+    }
+
+    .table-container {
+        overflow-x: auto;
+    }
+
+    .fixed-header {
+        position: sticky;
+        text-align: center;
+        align-content: center;
+        top: 0;
+        z-index: 1;
+        background-color: lightgray !important;
+    }
+
+    .fixed-column {
+        position: sticky;
+        text-align: center;
+        align-content: center;
+        left: 0;
+        z-index: 1;
+        background-color: lightgray !important;
+    }
+
+    .scrollable {
+        white-space: nowrap; /* Ensures no line breaks within cells */
+        width: 1000px;
+        height: 500px;
+        margin: -1px;
+    }
+</style>
+
+
+<script type="text/javascript">
+    function focusElement(id) {
+        console.log(`looking for: ${id}`);
+        var element = document.getElementById(id);
+        if (element) {
+            console.log(`focusing element: ${id} ${element}`)
+            element.focus();
+        }
+    }
+
+    window.addKeyPressListener = function (dotNetObject) {
+        console.log("registering key press event handler");
+        document.addEventListener('keydown', function (event) {
+            console.log(`got key: ${event.key}`);
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.preventDefault(); // Prevent arrow keys from scrolling
+            }
+            dotNetObject.invokeMethodAsync('HandleKeyPress', event.key);
+        });
+    };
+
+    function downloadFile(fileName, fileContent) {
+        console.log(`download file ${fileName}`);
+        // Create a blob with the file content
+        const blob = new Blob([fileContent], { type: "text/plain" });
+
+        // Create a link element
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+
+        // Append the anchor element to the body
+        document.body.appendChild(a);
+
+        // Click the link to trigger download
+        a.click();
+
+        // Remove the anchor element from the DOM
+        document.body.removeChild(a);
+    }
+
+</script>
